@@ -73,14 +73,14 @@ python train_synthetic.py \
 ## ImageNet-1K
 
 ```bash
-bash train_caspr_imagenet.sh /absolute/path/to/imagenet casprnet_n
+bash train_caspr_imagenet.sh casprnet_n
 ```
 
 For one selected GPU:
 
 ```bash
-GPU=0 BATCH_SIZE=256 OUTPUT_DIR=checkpoints/casprnet_n \
-  bash train_caspr_imagenet.sh /absolute/path/to/imagenet casprnet_n
+GPU=0 BATCH_SIZE=64 ACCUM_STEPS=4 OUTPUT_DIR=checkpoints/casprnet_n \
+  bash train_caspr_imagenet.sh casprnet_n
 ```
 
 The ImageNet script enables hard distillation by default using a pretrained
@@ -89,10 +89,10 @@ also be supplied as a local file or disabled explicitly:
 
 ```bash
 TEACHER_PATH=/absolute/path/to/regnety_160-a5fe301d.pth \
-  bash train_caspr_imagenet.sh /absolute/path/to/imagenet casprnet_n
+  bash train_caspr_imagenet.sh casprnet_n
 
 DISTILLATION_TYPE=none \
-  bash train_caspr_imagenet.sh /absolute/path/to/imagenet casprnet_n
+  bash train_caspr_imagenet.sh casprnet_n
 ```
 
 For gradient accumulation on a memory-limited GPU, `BATCH_SIZE` is the
@@ -102,7 +102,7 @@ of `64 * 4 = 256` on one GPU:
 
 ```bash
 GPU=0 BATCH_SIZE=64 ACCUM_STEPS=4 OUTPUT_DIR=checkpoints/casprnet_n \
-  bash train_caspr_imagenet.sh /absolute/path/to/imagenet casprnet_n
+  bash train_caspr_imagenet.sh casprnet_n
 ```
 
 On distributed training, the effective global batch is

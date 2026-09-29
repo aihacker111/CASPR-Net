@@ -162,7 +162,10 @@ def get_args_parser():
                         help='set BN layers to eval mode during finetuning.')
 
     # Dataset parameters
-    parser.add_argument('--data-path', default='/root/FastBaseline/data/imagenet', type=str,
+    parser.add_argument(
+        '--data-path',
+        default='/media/hung/HDD/workplaces/tin/cvpr2027/imagenet1k/imagenet',
+        type=str,
                         help='dataset path')
     parser.add_argument('--data-set', default='IMNET', choices=['CIFAR', 'IMNET', 'INAT', 'INAT19'],
                         type=str, help='Image Net dataset path')

@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 /absolute/path/to/imagenet [casprnet_n|casprnet_t|casprnet_s]"
-    exit 2
-fi
-
-DATA_PATH="$1"
-MODEL="${2:-casprnet_n}"
+DATA_PATH="${DATA_PATH:-/media/hung/HDD/workplaces/tin/cvpr2027/imagenet1k/imagenet}"
+MODEL="${1:-casprnet_n}"
 GPU="${GPU:-0}"
 BATCH_SIZE="${BATCH_SIZE:-64}"
 ACCUM_STEPS="${ACCUM_STEPS:-4}"
