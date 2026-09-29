@@ -13,6 +13,9 @@ from model.casprnet import (
     CasprSparseProduct,
     CasprSpatialGroup,
     casprnet_n,
+    casprnet_s,
+    casprnet_t,
+    coverage_group_sizes,
 )
 
 
@@ -89,6 +92,23 @@ def test_sparse_product_global_dependency() -> None:
     assert int(jacobian_pattern.sum(dim=1).min()) >= 4
 
 
+def test_variant_group_sizes_have_two_factor_coverage() -> None:
+    expected = {
+        casprnet_n: ((48, 96, 192, 320), (8, 16, 16, 32)),
+        casprnet_t: ((64, 128, 256, 384), (8, 16, 16, 24)),
+        casprnet_s: ((64, 128, 320, 512), (8, 16, 32, 32)),
+    }
+    for factory, (widths, group_sizes) in expected.items():
+        assert coverage_group_sizes(widths) == group_sizes
+        model = factory(num_classes=8, metric_enabled=False)
+        actual = tuple(
+            stage[0].channel_mixer.pre.group_size for stage in model.stages
+        )
+        assert actual == group_sizes
+        assert all(width % size == 0 for width, size in zip(widths, actual))
+        assert all(size * size >= width for width, size in zip(widths, actual))
+
+
 def test_metrics_backward() -> None:
     torch.manual_seed(13)
     spatial = CasprDenseStep(
@@ -128,6 +148,8 @@ if __name__ == "__main__":
     print("[PASS] exact sparse channel-level folding")
     test_sparse_product_global_dependency()
     print("[PASS] inter-group channel connectivity")
+    test_variant_group_sizes_have_two_factor_coverage()
+    print("[PASS] stage-adaptive two-factor channel coverage")
     test_metrics_backward()
     print("[PASS] curvature-aligned metric backward")
     test_model_forward_and_folding()

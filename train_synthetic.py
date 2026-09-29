@@ -16,7 +16,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from model.casprnet import CasprNet, SUPPORTED_ACTIVATIONS
+from model.casprnet import (SUPPORTED_ACTIVATIONS, CasprNet,
+                            coverage_group_sizes)
 
 
 def seed_everything(seed: int) -> None:
@@ -67,10 +68,11 @@ def build_debug_model(
     activation: str,
     metric_enabled: bool = True,
 ) -> CasprNet:
+    widths = (16, 32, 64, 96)
     return CasprNet(
-        widths=(16, 32, 64, 96),
+        widths=widths,
         depths=(1, 1, 2, 1),
-        group_sizes=(8, 8, 8, 8),
+        group_sizes=coverage_group_sizes(widths),
         sparse_levels=(1, 1, 1, 1),
         head_dim=128,
         stem_channels=8,

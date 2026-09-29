@@ -113,6 +113,17 @@ Registered variants are `casprnet_n`, `casprnet_t`, and `casprnet_s`.
 Use `--disable-caspr-metric` for the identity-metric ablation and
 `--caspr-metric-interval N` to control metric sampling cost.
 
+The channel group width is selected per stage rather than fixed globally. For
+two grouped 1x1 factors separated by a perfect shuffle, a group width `b` can
+cover at most `b^2` original channels. `coverage_group_sizes` selects the
+smallest aligned divisor satisfying `b^2 >= C` for stage width `C`:
+
+| Variant | Widths | Group widths |
+|---|---|---|
+| `casprnet_n` | `(48, 96, 192, 320)` | `(8, 16, 16, 32)` |
+| `casprnet_t` | `(64, 128, 256, 384)` | `(8, 16, 16, 24)` |
+| `casprnet_s` | `(64, 128, 320, 512)` | `(8, 16, 32, 32)` |
+
 ## Parameters, MACs and latency
 
 ```bash
@@ -122,47 +133,39 @@ python benchmark.py --model casprnet_n --device cuda --batch-size 1 --deploy
 python benchmark_pair.py --model casprnet_n --device cpu --threads 1
 ```
 
-At input `1x3x224x224`, the current profiles are:
+At input `1x3x224x224`, the current single-head profiles
+(`distillation=False`) are:
 
 | Variant | Graph | Parameters | MACs |
 |---|---|---:|---:|
-| `casprnet_n` | train | 1.688M | 0.0492G |
-| `casprnet_n` | deploy | **1.596M** | **0.0292G** |
-| `casprnet_t` | deploy | 1.971M | 0.0414G |
-| `casprnet_s` | deploy | 2.499M | 0.0585G |
+| `casprnet_n` | train | 1.792M | 0.0643G |
+| `casprnet_n` | deploy | **1.649M** | **0.0367G** |
+| `casprnet_t` | train | 2.235M | 0.0930G |
+| `casprnet_t` | deploy | 2.032M | 0.0522G |
+| `casprnet_s` | train | 3.204M | 0.1847G |
+| `casprnet_s` | deploy | 2.732M | 0.0970G |
 
 These are architecture counts, not accuracy claims. ImageNet and COCO results
 must be measured after training. Sparse grouped kernels are backend-sensitive,
-so always report real device latency in addition to MACs. On the local CPU
-Paired seven-round benchmarks use batch 1, 224x224 inputs, one CPU thread, 50
+so always report real device latency in addition to MACs. On the local CPU,
+paired seven-round benchmarks use batch 1, 224x224 inputs, one CPU thread, 50
 warm-up forwards, alternating graph order, and at least 1.5 seconds per trial:
 
 | Variant | Unfused median | Deploy median | Speedup | Deploy throughput |
 |---|---:|---:|---:|---:|
-| `casprnet_n` | 23.9226 ms | 11.8704 ms | 2.015x | 84.24 image/s |
-| `casprnet_t` | 60.5072 ms | 38.9185 ms | 1.555x | 25.69 image/s |
-| `casprnet_s` | 91.0940 ms | 49.4525 ms | 1.842x | 20.22 image/s |
+| `casprnet_n` | 24.0990 ms | 10.2105 ms | 2.360x | 97.94 image/s |
+| `casprnet_t` | 48.3293 ms | 27.3374 ms | 1.768x | 36.58 image/s |
+| `casprnet_s` | 70.1313 ms | 35.8095 ms | 1.959x | 27.93 image/s |
 
 These are engineering measurements, not accuracy-matched SOTA claims.
 Multi-thread scaling remains backend-sensitive because grouped 1x1 kernels and
 channel shuffle are not fused by eager PyTorch.
 
-Full `casprnet_n` latency by activation uses paired seven-round measurements,
-alternating unfused and deploy graphs with at least one second per trial:
-
-| Activation | Unfused median | Deploy median | Fusion speedup | Deploy equivalence |
-|---|---:|---:|---:|---:|
-| ReLU | 25.9335 ms | 12.0784 ms | 2.147x | pass |
-| ReLU6 | 25.7770 ms | 11.8447 ms | 2.176x | pass |
-| GELU | 29.4021 ms | 14.2784 ms | 2.059x | pass |
-| SiLU | 31.7922 ms | 16.4916 ms | 1.928x | pass |
-| Swish | 31.1976 ms | 16.5837 ms | 1.881x | pass |
-| Mish | 44.0652 ms | 31.3016 ms | 1.408x | pass |
-| Hardswish | 27.2659 ms | 12.4048 ms | 2.198x | pass |
-
-All activation tests also pass finite-gradient backward checks. These latency
-results do not compare accuracy because each activation requires a separately
-trained checkpoint for a valid ImageNet comparison.
+All supported activations pass deploy-equivalence and finite-gradient backward
+tests. Activation-specific latency must be remeasured after each architecture
+change and activation accuracy requires a separately trained ImageNet
+checkpoint, so stale latency numbers from the fixed-eight-group model are not
+carried forward here.
 
 ## ONNX export
 

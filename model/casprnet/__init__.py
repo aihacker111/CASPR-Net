@@ -7,7 +7,8 @@ from .network import CasprNet
 from .reparameterization import (ActivationAwareKernelMetric,
                                  ActivationAwareSparseMetric, CasprDenseStep,
                                  CasprSparseStep)
-from .variants import casprnet_n, casprnet_s, casprnet_t
+from .variants import (casprnet_n, casprnet_s, casprnet_t,
+                       coverage_group_sizes)
 
 __all__ = [
     "SUPPORTED_ACTIVATIONS", "build_activation",
@@ -15,5 +16,5 @@ __all__ = [
     "CasprDenseStep", "CasprSparseStep", "CasprSpatialGroup",
     "CasprSparseLevel", "CasprSparseProduct", "CasprChannelMixer",
     "CasprBlock", "CasprNet", "channel_shuffle",
-    "casprnet_n", "casprnet_t", "casprnet_s",
+    "coverage_group_sizes", "casprnet_n", "casprnet_t", "casprnet_s",
 ]
