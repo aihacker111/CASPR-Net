@@ -4,8 +4,8 @@ set -euo pipefail
 DATA_PATH="${DATA_PATH:-/media/hung/HDD/workplaces/tin/cvpr2027/imagenet1k/imagenet}"
 MODEL="${1:-casprnet_n}"
 GPU="${GPU:-0}"
-BATCH_SIZE="${BATCH_SIZE:-256}"
-ACCUM_STEPS="${ACCUM_STEPS:-1}"
+BATCH_SIZE="${BATCH_SIZE:-128}"
+ACCUM_STEPS="${ACCUM_STEPS:-2}"
 OUTPUT_DIR="${OUTPUT_DIR:-checkpoints}"
 DISTILLATION_TYPE="${DISTILLATION_TYPE:-hard}"
 TEACHER_MODEL="${TEACHER_MODEL:-regnety_160}"
@@ -53,5 +53,5 @@ CUDA_VISIBLE_DEVICES="$GPU" python main.py \
     --dist-eval \
     --project casprnet \
     --output_dir "$OUTPUT_DIR" \
-    --num_workers 16 \
+    --num_workers 8 \
     --seed 42
