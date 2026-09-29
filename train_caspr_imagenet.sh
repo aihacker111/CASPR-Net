@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DATA_PATH="${DATA_PATH:-/media/hung/HDD/workplaces/tin/cvpr2027/imagenet1k/imagenet}"
+DATA_PATH="${DATA_PATH:-/workspace/imagenet1k/imagenet}"
 MODEL="${1:-casprnet_n}"
 GPU="${GPU:-0}"
 BATCH_SIZE="${BATCH_SIZE:-256}"
 ACCUM_STEPS="${ACCUM_STEPS:-1}"
 OUTPUT_DIR="${OUTPUT_DIR:-checkpoints}"
-DISTILLATION_TYPE="${DISTILLATION_TYPE:-none}"
+DISTILLATION_TYPE="${DISTILLATION_TYPE:-hard}"
 TEACHER_MODEL="${TEACHER_MODEL:-regnety_160}"
 TEACHER_PATH="${TEACHER_PATH:-https://dl.fbaipublicfiles.com/deit/regnety_160-a5fe301d.pth}"
 DISTILLATION_ALPHA="${DISTILLATION_ALPHA:-0.5}"
@@ -51,7 +51,6 @@ CUDA_VISIBLE_DEVICES="$GPU" python main.py \
     --distillation-alpha "$DISTILLATION_ALPHA" \
     --distillation-tau "$DISTILLATION_TAU" \
     --dist-eval \
-    --disable-caspr-metric \
     --project casprnet \
     --output_dir "$OUTPUT_DIR" \
     --num_workers 16 \
