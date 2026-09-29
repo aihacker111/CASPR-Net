@@ -7,7 +7,7 @@ GPU="${GPU:-0}"
 BATCH_SIZE="${BATCH_SIZE:-256}"
 ACCUM_STEPS="${ACCUM_STEPS:-1}"
 OUTPUT_DIR="${OUTPUT_DIR:-checkpoints}"
-DISTILLATION_TYPE="${DISTILLATION_TYPE:-hard}"
+DISTILLATION_TYPE="${DISTILLATION_TYPE:-none}"
 TEACHER_MODEL="${TEACHER_MODEL:-regnety_160}"
 TEACHER_PATH="${TEACHER_PATH:-https://dl.fbaipublicfiles.com/deit/regnety_160-a5fe301d.pth}"
 DISTILLATION_ALPHA="${DISTILLATION_ALPHA:-0.5}"
@@ -54,5 +54,5 @@ CUDA_VISIBLE_DEVICES="$GPU" python main.py \
     --disable-caspr-metric \
     --project casprnet \
     --output_dir "$OUTPUT_DIR" \
-    --num_workers 4 \
+    --num_workers 16 \
     --seed 42
