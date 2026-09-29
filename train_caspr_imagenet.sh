@@ -53,5 +53,5 @@ CUDA_VISIBLE_DEVICES="$GPU" python main.py \
     --dist-eval \
     --project casprnet \
     --output_dir "$OUTPUT_DIR" \
-    --num_workers 16 \
+    --num_workers 4 \
     --seed 42
