@@ -175,7 +175,7 @@ def get_args_parser():
                         type=str, help='semantic granularity')
     parser.add_argument('--output_dir', default='checkpoints',
                         help='path where to save, empty for no saving')
-    parser.add_argument('--device', default='cuda',
+    parser.add_argument('--device', default='cuda:0',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--resume', default='', help='resume from checkpoint')
