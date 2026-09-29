@@ -51,6 +51,7 @@ CUDA_VISIBLE_DEVICES="$GPU" python main.py \
     --distillation-alpha "$DISTILLATION_ALPHA" \
     --distillation-tau "$DISTILLATION_TAU" \
     --dist-eval \
+    --disable-caspr-metric \
     --project casprnet \
     --output_dir "$OUTPUT_DIR" \
     --num_workers 4 \
