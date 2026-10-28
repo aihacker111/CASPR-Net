@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DATA_PATH="${DATA_PATH:-/media/hung/HDD2/workplaces/tin/cvpr2027/imagenet1k/imagenet}"
+DATA_PATH="${DATA_PATH:-/workspace/imagenet1k/imagenet}"
 MODEL="${1:-ernet_n}"
 GPU="${GPU:-0}"
 BATCH_SIZE="${BATCH_SIZE:-256}"
@@ -53,5 +53,5 @@ CUDA_VISIBLE_DEVICES="$GPU" python main.py \
     --dist-eval \
     --project ernet \
     --output_dir "$OUTPUT_DIR" \
-    --num_workers 16 \
+    --num_workers "${NUM_WORKERS:-16}" \
     --seed 42

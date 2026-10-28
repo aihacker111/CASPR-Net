@@ -47,9 +47,27 @@ python count_params.py --model ernet_n --deploy
 python export_onnx.py --model ernet_n --output ernet_n.onnx --deploy --verify
 
 # ImageNet-1K (RegNetY-16GF hard distillation by default)
-DATA_PATH=/path/to/imagenet bash train_ernet_imagenet.sh ernet_n
+DATA_PATH=/path/to/imagenet bash train_ernet_imagenet.sh ernet_n   # expects train/<wnid>/, val/<wnid>/
 python main.py --eval --deploy --model ernet_n --resume <ckpt> --data-path <imagenet>
 ```
+
+### Kaggle ("ImageNet Object Localization Challenge" data)
+
+Its validation images are in one flat folder with detection-style labels
+(`LOC_val_solution.csv`). Build classification folders once (symlinks, no
+extra disk), then train:
+
+```bash
+python tools/prepare_kaggle_imagenet.py \
+    --kaggle-root /kaggle/input/imagenet-object-localization-challenge \
+    --out /kaggle/working/imagenet
+DATA_PATH=/kaggle/working/imagenet NUM_WORKERS=4 BATCH_SIZE=128 ACCUM_STEPS=2 \
+    bash train_ernet_imagenet.sh ernet_n
+```
+
+The script checks 1000 classes, 50,000 val images (50 per class) and that
+train/val class indices match. Teacher distillation downloads RegNetY-16GF,
+so enable internet or pass `DISTILLATION_TYPE=none`.
 
 Ablations (`main.py`): `--no-disentangle` (tree), `--renormalization conv4x4`,
 `--no-wavelet-init`, `--block-disentangle`, `--circuit-depth k`.

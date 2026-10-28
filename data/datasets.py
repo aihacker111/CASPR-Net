@@ -1,8 +1,11 @@
 '''
 Build trainining/testing datasets
 '''
+import hashlib
 import os
 import json
+import pickle
+import time
 
 from torchvision import datasets, transforms
 from torchvision.datasets.folder import ImageFolder, default_loader
@@ -61,6 +64,81 @@ class INatDataset(ImageFolder):
     # __getitem__ and __len__ inherited from ImageFolder
 
 
+class CachedImageFolder(ImageFolder):
+    """ImageFolder whose file index is cached after the first scan.
+
+    Listing ImageNet (1.28M files) on a hard disk can take many minutes and
+    torchvision prints nothing meanwhile, so the run looks frozen.  The first
+    run scans once (with progress messages) and stores the (path, label)
+    index in ``cache_dir``; later runs load it in about a second.  The cache
+    is invalidated automatically when class folders, or files inside them,
+    are added or removed (``ERNET_DATA_CACHE`` sets the cache folder).
+    """
+
+    def __init__(self, root, transform=None, cache_dir=None):
+        root = os.path.abspath(os.path.expanduser(root))
+        if not os.path.isdir(root):
+            raise FileNotFoundError(
+                f"Dataset directory not found: {root}. Set DATA_PATH / --data-path "
+                "to the folder that contains train/ and val/.")
+        cache_dir = cache_dir or os.environ.get(
+            "ERNET_DATA_CACHE", os.path.expanduser("~/.cache/ernet_datasets"))
+        classes = sorted(entry.name for entry in os.scandir(root) if entry.is_dir())
+        # Directory mtimes change whenever files are added or removed, so the
+        # key covers both the class list and the folder contents (cheap: one
+        # stat per class folder, no file listing).
+        stamps = [os.stat(os.path.join(root, name)).st_mtime_ns for name in classes]
+        key = "|".join([root, *classes, str(max(stamps, default=0)),
+                        str(sum(stamps) % (1 << 61))])
+        signature = hashlib.sha1(key.encode()).hexdigest()[:16]
+        cache_file = os.path.join(cache_dir, f"index_{signature}.pkl")
+
+        if os.path.exists(cache_file):
+            started = time.time()
+            with open(cache_file, "rb") as handle:
+                index = pickle.load(handle)
+            # Same attributes as DatasetFolder, without rescanning the disk.
+            self._init_from_index(root, transform, index)
+            print(f"[data] {root}: loaded cached index of {len(self.samples)} images "
+                  f"({len(self.classes)} classes) in {time.time() - started:.1f}s",
+                  flush=True)
+            return
+
+        print(f"[data] Indexing {root} ({len(classes)} class folders). The first run "
+              "on a hard disk can take several minutes; it is cached afterwards.",
+              flush=True)
+        started = time.time()
+        super().__init__(root, transform=transform)
+        print(f"[data] {root}: {len(self.samples)} images indexed in "
+              f"{time.time() - started:.0f}s", flush=True)
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+            temporary = cache_file + f".tmp{os.getpid()}"
+            with open(temporary, "wb") as handle:
+                pickle.dump(dict(classes=self.classes,
+                                 class_to_idx=self.class_to_idx,
+                                 samples=self.samples), handle,
+                            protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(temporary, cache_file)
+            print(f"[data] index cached at {cache_file}", flush=True)
+        except OSError as error:
+            print(f"[data] could not write index cache ({error}); continuing",
+                  flush=True)
+
+    def _init_from_index(self, root, transform, index):
+        self.root = root
+        self.transform = transform
+        self.target_transform = None
+        self.transforms = None
+        self.loader = default_loader
+        self.extensions = None
+        self.classes = index["classes"]
+        self.class_to_idx = index["class_to_idx"]
+        self.samples = index["samples"]
+        self.targets = [target for _, target in self.samples]
+        self.imgs = self.samples
+
+
 def build_dataset(is_train, args):
     transform = build_transform(is_train, args)
 
@@ -72,10 +150,12 @@ def build_dataset(is_train, args):
         prefix = 'train' if is_train else 'val'
         data_dir = os.path.join(args.data_path, f'{prefix}.tar')
         if os.path.exists(data_dir):
+            print(f"[data] Reading tar index of {data_dir} (can take minutes on a "
+                  "hard disk)", flush=True)
             dataset = TimmDatasetTar(data_dir, transform=transform)
         else:
             root = os.path.join(args.data_path, 'train' if is_train else 'val')
-            dataset = datasets.ImageFolder(root, transform=transform)
+            dataset = CachedImageFolder(root, transform=transform)
         nb_classes = 1000
     elif args.data_set == 'IMNETEE':
         root = os.path.join(args.data_path, 'train' if is_train else 'val')
