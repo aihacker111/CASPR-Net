@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DATA_PATH="${DATA_PATH:-/workspace/imagenet1k/imagenet}"
+DATA_PATH="${DATA_PATH:-/kaggle/working/imagenet}"
 MODEL="${1:-ernet_n}"
 GPU="${GPU:-0}"
 BATCH_SIZE="${BATCH_SIZE:-256}"
