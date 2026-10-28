@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-MODEL=repnext_m0
+MODEL=ernet_n
 nGPUs=4
 epochs=100
 

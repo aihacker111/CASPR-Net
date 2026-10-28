@@ -1,7 +1,11 @@
-# CASPR-Net
+# CASPR-Net (baseline)
 
-**CASPR** is the single name used by this repository. It means
-**Curvature-Aligned Sparse Product Reparameterization**.
+> The default backbone of this repository is now **ER-Net** (see
+> [ERNET.md](ERNET.md) and [README.md](README.md)). CASPR-Net stays registered
+> as a baseline (`--model casprnet_n|t|s`, `train_caspr_imagenet.sh`,
+> `test_caspr.py`); the numbers below are unchanged from its last revision.
+
+**CASPR** means **Curvature-Aligned Sparse Product Reparameterization**.
 
 CASPR-Net targets the dominant cost of a mobile backbone: dense pointwise
 channel mixing. A block uses

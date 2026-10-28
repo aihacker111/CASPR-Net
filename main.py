@@ -38,18 +38,47 @@ def get_args_parser():
     parser.add_argument('--epochs', default=300, type=int)
 
     # Model parameters
-    parser.add_argument('--model', default='casprnet_n', type=str, metavar='MODEL',
-                        help='Name of model to train')
+    parser.add_argument('--model', default='ernet_n', type=str, metavar='MODEL',
+                        help='Name of model to train (ernet_n / ernet_t / ernet_s; '
+                             'casprnet_* remain available as baselines)')
     parser.add_argument(
-        '--caspr-activation', default='relu', type=str,
+        '--activation', '--caspr-activation', dest='activation',
+        default='relu', type=str,
         choices=['relu', 'relu6', 'gelu', 'silu', 'mish', 'hardswish'],
-        help='Single activation used inside CASPR sparse channel mixers.')
+        help='Activation used inside the backbone blocks.')
+    # ER-Net (entanglement renormalization) options
+    parser.add_argument(
+        '--circuit-depth', default=1, type=int,
+        help='ER-Net: train-time depth k of each disentangler circuit '
+             'U = U_k...U_1 (collapses to one rotation on deploy).')
+    parser.add_argument(
+        '--no-wavelet-init', action='store_false', dest='wavelet_init',
+        help='ER-Net ablation: random instead of Daubechies-4 / Haar '
+             'initialisation of the renormalization steps.')
+    parser.add_argument(
+        '--no-disentangle', action='store_false', dest='disentangle',
+        help='ER-Net ablation: remove every disentangler (tree coarse-graining).')
+    parser.add_argument(
+        '--block-disentangle', action='store_true', dest='block_disentangle',
+        help='ER-Net ablation: add a brick-wall disentangler to every block '
+             '(default: one disentangler layer per scale, as in MERA).')
+    parser.add_argument(
+        '--local-kernel', default=3, type=int,
+        help='ER-Net: depthwise kernel on the gate path of the gated '
+             'contraction (0 disables it).')
+    parser.add_argument(
+        '--renormalization', default='mera', choices=['mera', 'conv4x4'],
+        help="ER-Net: 'mera' = disentangler + isometry; 'conv4x4' = ablation "
+             "with an unstructured 4x4/s2 conv (same receptive field as W.U).")
+    parser.set_defaults(disentangle=True, block_disentangle=False,
+                        wavelet_init=True)
+    # CASPR-Net baseline options (ignored by ER-Net)
     parser.add_argument(
         '--caspr-metric-interval', default=32, type=int,
-        help='Steps between CASPR spatial/channel curvature metric updates.')
+        help='CASPR baseline: steps between curvature metric updates.')
     parser.add_argument(
         '--disable-caspr-metric', action='store_true',
-        help='Disable CASPR metric gradient preconditioning for ablation.')
+        help='CASPR baseline: disable metric gradient preconditioning.')
     parser.add_argument('--input-size', default=224,
                         type=int, help='images input size')
 
@@ -201,7 +230,7 @@ def get_args_parser():
                         help='frequency of model saving')
     
     parser.add_argument('--deploy', action='store_true', default=False)
-    parser.add_argument('--project', default='casprnet', type=str)
+    parser.add_argument('--project', default='ernet', type=str)
     parser.add_argument('--wandb', action='store_true', default=False,
                         help='Enable Weights & Biases logging.')
     parser.add_argument('--no-wandb', action='store_false', dest='wandb',
@@ -296,7 +325,15 @@ def main(args):
         args.model,
         num_classes=args.nb_classes,
         distillation=(args.distillation_type != 'none'),
-        activation=args.caspr_activation,
+        activation=args.activation,
+        # ER-Net options (CASPR-Net ignores them)
+        circuit_depth=args.circuit_depth,
+        disentangle=args.disentangle,
+        block_disentangle=args.block_disentangle,
+        renormalization=args.renormalization,
+        wavelet_init=args.wavelet_init,
+        local_kernel=args.local_kernel,
+        # CASPR-Net options (ER-Net ignores them)
         metric_enabled=not args.disable_caspr_metric,
         metric_update_interval=args.caspr_metric_interval,
         pretrained=False,
@@ -573,7 +610,7 @@ def export_onnx(model, output_dir):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        'CASPR-Net ImageNet training and evaluation script', parents=[get_args_parser()])
+        'ER-Net ImageNet training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
     if args.resume and not args.eval:
         args.output_dir = '/'.join(args.resume.split('/')[:-1])

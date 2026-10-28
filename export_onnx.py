@@ -3,13 +3,13 @@ export_onnx.py — Export a local ImageNet model to ONNX.
 
 Usage:
     # From checkpoint
-    python export_onnx.py --checkpoint checkpoints/checkpoint_best.pth --output casprnet_n.onnx --deploy
+    python export_onnx.py --checkpoint checkpoints/checkpoint_best.pth --output ernet_n.onnx --deploy
 
     # Without checkpoint (random weights, for architecture check)
-    python export_onnx.py --output casprnet_n.onnx --deploy
+    python export_onnx.py --output ernet_n.onnx --deploy
 
     # Different model / image size
-    python export_onnx.py --model casprnet_t --img-size 224 --checkpoint best.pth --deploy
+    python export_onnx.py --model ernet_t --img-size 224 --checkpoint best.pth --deploy
 
     # Verify exported model
     python export_onnx.py --checkpoint best.pth --verify
@@ -18,21 +18,21 @@ Usage:
 import argparse
 import torch
 import timm
-import model  # registers local CASPR-Net models
+import model  # registers local ER-Net / CASPR-Net models
 
 
 def get_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--model",       default="casprnet_n", type=str)
+    p.add_argument("--model",       default="ernet_n", type=str)
     p.add_argument("--checkpoint",  default="",  type=str, help="Path to .pth checkpoint")
-    p.add_argument("--output",      default="casprnet.onnx", type=str)
+    p.add_argument("--output",      default="ernet.onnx", type=str)
     p.add_argument("--num-classes", default=1000, type=int)
     p.add_argument("--img-size",    default=224,  type=int)
     p.add_argument("--batch-size",  default=1,    type=int)
     p.add_argument("--opset",       default=17,   type=int)
     p.add_argument("--verify",      action="store_true", help="Verify ONNX output vs PyTorch")
     p.add_argument("--deploy",      action="store_true",
-                   help="Fold CASPR train-time spatial and sparse branches before export")
+                   help="Reparameterize (collapse circuits, fold BN) before export")
     return p.parse_args()
 
 

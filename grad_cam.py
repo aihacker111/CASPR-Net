@@ -1,8 +1,8 @@
 """
-gradcam_viz.py — Grad-CAM heatmap visualization for CASPR-Net (or any CNN/ViT)
+gradcam_viz.py — Grad-CAM heatmap visualization for ER-Net / CASPR-Net (or any CNN/ViT)
 Usage:
-    python grad_cam.py --image cat.jpg --model casprnet_n --checkpoint model.pth
-    python grad_cam.py --image dog.jpg --model casprnet_n --checkpoint model.pth --layer norm
+    python grad_cam.py --image cat.jpg --model ernet_n --checkpoint model.pth
+    python grad_cam.py --image dog.jpg --model ernet_n --checkpoint model.pth --layer norm
 """
 from __future__ import annotations
 
@@ -271,7 +271,7 @@ def show_gradcam(
 # ---------------------------------------------------------------------------
 
 def _build_model(model_name: str, checkpoint: str | None, device: str) -> nn.Module:
-    """Load a named CASPR-Net variant and an optional checkpoint."""
+    """Load a named ER-Net / CASPR-Net variant and an optional checkpoint."""
     import model as _model_pkg  # ensure timm registrations are loaded
     _ = _model_pkg
 
@@ -300,18 +300,24 @@ def _build_model(model_name: str, checkpoint: str | None, device: str) -> nn.Mod
 def _pick_layer(model: nn.Module, layer_hint: str) -> nn.Module:
     """
     Select target layer by hint string:
-      'last'  → final sparse channel level of the last CASPR block
+      'last'  → output projection of the last block (ER-Net) or final
+                sparse channel level of the last block (CASPR-Net)
       'norm'  → final backbone norm
       'stage0'..'stage3' → last block of that stage
       or pass a dotted attr path like 'stages.2.4.attn'
     """
+    def block_output(block: nn.Module) -> nn.Module:
+        if hasattr(block, "mixer"):          # ER-Net block
+            return block.mixer.project
+        return block.channel_mixer.post.levels[-1]  # CASPR-Net block
+
     if layer_hint == "last":
-        return model.stages[-1][-1].channel_mixer.post.levels[-1]
+        return block_output(model.stages[-1][-1])
     if layer_hint == "norm":
         return model.norm
     if layer_hint.startswith("stage"):
         idx = int(layer_hint.replace("stage", ""))
-        return model.stages[idx][-1].channel_mixer.post.levels[-1]
+        return block_output(model.stages[idx][-1])
     # Dotted path fallback
     parts = layer_hint.split(".")
     obj   = model
@@ -323,7 +329,7 @@ def _pick_layer(model: nn.Module, layer_hint: str) -> nn.Module:
 def main():
     parser = argparse.ArgumentParser(description="Grad-CAM visualizer for dog/cat model")
     parser.add_argument("--image",      required=True,            help="Path to image or folder")
-    parser.add_argument("--model",      default="casprnet_n", help="timm model name")
+    parser.add_argument("--model",      default="ernet_n", help="timm model name")
     parser.add_argument("--checkpoint", default=None,             help="Path to .pth checkpoint")
     parser.add_argument("--layer",      default="last",           help="Target layer hint")
     parser.add_argument("--class_idx",  type=int, default=None,   help="Force class index (0=cat,1=dog)")

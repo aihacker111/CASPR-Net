@@ -1,12 +1,16 @@
 """
-Đo latency (ms) và throughput (images/s) của CASPR-Net.
+Đo latency (ms) và throughput (images/s) của ER-Net (hoặc baseline CASPR-Net).
 Chạy: python benchmark.py [--batch-size 1] [--device cuda] [--checkpoint path/to/ckpt.pth]
 """
 import argparse
 import torch
 from model.casprnet import casprnet_n, casprnet_s, casprnet_t
+from model.ernet import ernet_n, ernet_s, ernet_t
 
 LOCAL_MODELS = {
+    "ernet_n": ernet_n,
+    "ernet_t": ernet_t,
+    "ernet_s": ernet_s,
     "casprnet_n": casprnet_n,
     "casprnet_t": casprnet_t,
     "casprnet_s": casprnet_s,
@@ -101,7 +105,7 @@ def benchmark(model_name: str, batch_size: int, device: str, resolution: int = 2
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model",      default="casprnet_n", type=str)
+    parser.add_argument("--model",      default="ernet_n", type=str)
     parser.add_argument("--batch-size", default=1,   type=int)
     parser.add_argument("--device",     default="cuda", type=str)
     parser.add_argument("--resolution", default=224, type=int)
@@ -109,7 +113,7 @@ if __name__ == "__main__":
     parser.add_argument("--threads", default=None, type=int,
                         help="CPU thread count; use 1 for edge-style latency")
     parser.add_argument("--deploy", action="store_true",
-                        help="Fold CASPR spatial and sparse channel branches before benchmarking")
+                        help="Reparameterize (collapse circuits / fold branches) before benchmarking")
     args = parser.parse_args()
 
     benchmark(args.model, args.batch_size, args.device, args.resolution,

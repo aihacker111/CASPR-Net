@@ -1,4 +1,4 @@
-"""Train a small CASPR-Net on synthetic images and verify exact folding.
+"""Train a small ER-Net on synthetic images and verify exact deploy collapse.
 
 This is a fast correctness experiment, not an accuracy benchmark. It updates
 BatchNorm statistics and weights, then checks the complete validation set
@@ -16,8 +16,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from model.casprnet import (SUPPORTED_ACTIVATIONS, CasprNet,
-                            coverage_group_sizes)
+from model.ernet import SUPPORTED_ACTIVATIONS, ERNet
 
 
 def seed_everything(seed: int) -> None:
@@ -66,23 +65,18 @@ def make_synthetic_dataset(
 def build_debug_model(
     num_classes: int,
     activation: str,
-    metric_enabled: bool = True,
-) -> CasprNet:
-    widths = (16, 32, 64, 96)
-    return CasprNet(
-        widths=widths,
+    disentangle: bool = True,
+) -> ERNet:
+    return ERNet(
+        widths=(16, 32, 64, 96),
         depths=(1, 1, 2, 1),
-        group_sizes=coverage_group_sizes(widths),
-        sparse_levels=(1, 1, 1, 1),
+        mlp_ratios=2,
         head_dim=128,
         stem_channels=8,
-        transition_group_size=8,
-        spatial_branches=(2, 2, 2, 2),
         activation=activation,
         num_classes=num_classes,
         drop_path_rate=0.0,
-        metric_enabled=metric_enabled,
-        metric_update_interval=1,
+        disentangle=disentangle,
     )
 
 
@@ -205,7 +199,7 @@ def measure_latency(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser("CASPR-Net synthetic train and fold verifier")
+    parser = argparse.ArgumentParser("ER-Net synthetic train and deploy-collapse verifier")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--train-samples", type=int, default=1024)
     parser.add_argument("--val-samples", type=int, default=256)
@@ -223,9 +217,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--latency-warmup", type=int, default=20)
     parser.add_argument("--latency-iters", type=int, default=100)
     parser.add_argument(
-        "--disable-metric",
+        "--no-disentangle",
         action="store_true",
-        help="Ablate CASPR spatial and sparse-channel metric preconditioning.",
+        help="Ablation: remove all disentanglers (tree coarse-graining).",
     )
     return parser.parse_args()
 
@@ -250,19 +244,23 @@ def main() -> None:
     network = build_debug_model(
         args.num_classes,
         args.activation,
-        metric_enabled=not args.disable_metric,
+        disentangle=not args.no_disentangle,
     ).to(device)
     criterion = nn.CrossEntropyLoss()
+    skip = network.no_weight_decay()
+    decay = [p for n, p in network.named_parameters() if n not in skip and p.ndim > 1]
+    no_decay = [p for n, p in network.named_parameters() if n in skip or p.ndim <= 1]
     optimizer = torch.optim.AdamW(
-        network.parameters(), lr=args.lr, weight_decay=args.weight_decay
+        [dict(params=decay, weight_decay=args.weight_decay),
+         dict(params=no_decay, weight_decay=0.0)], lr=args.lr
     )
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=max(1, args.epochs)
     )
 
     print(
-        f"model=CASPR-debug activation={args.activation} device={device} "
-        f"metric={'off' if args.disable_metric else 'on'} "
+        f"model=ERNet-debug activation={args.activation} device={device} "
+        f"disentangle={'off' if args.no_disentangle else 'on'} "
         f"params={sum(p.numel() for p in network.parameters()) / 1e6:.3f}M"
     )
     for epoch in range(args.epochs):

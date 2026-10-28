@@ -1,4 +1,4 @@
-"""Paired end-to-end latency benchmark for CASPR train and deploy graphs."""
+"""Paired end-to-end latency benchmark for train and deploy graphs (ER-Net / CASPR-Net)."""
 from __future__ import annotations
 
 import argparse
@@ -9,9 +9,13 @@ import torch
 from torch.utils.benchmark import Timer
 
 from model.casprnet import casprnet_n, casprnet_s, casprnet_t
+from model.ernet import ernet_n, ernet_s, ernet_t
 
 
 FACTORIES = {
+    "ernet_n": ernet_n,
+    "ernet_t": ernet_t,
+    "ernet_s": ernet_s,
     "casprnet_n": casprnet_n,
     "casprnet_t": casprnet_t,
     "casprnet_s": casprnet_s,
@@ -49,8 +53,8 @@ def cuda_round(runner: Runner, iterations: int, device: torch.device) -> float:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser("Paired full-model CASPR benchmark")
-    parser.add_argument("--model", choices=sorted(FACTORIES), default="casprnet_n")
+    parser = argparse.ArgumentParser("Paired full-model train/deploy benchmark")
+    parser.add_argument("--model", choices=sorted(FACTORIES), default="ernet_n")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--resolution", type=int, default=224)

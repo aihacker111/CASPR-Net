@@ -1,8 +1,9 @@
-"""Profile CASPR-Net parameters and MACs before or after reparameterization.
+"""Profile ER-Net / CASPR-Net parameters and MACs before or after reparameterization.
 
 Conventions:
   * one multiply-accumulate (MAC) is reported as one operation;
-  * Conv2d and Linear operations are counted;
+  * Conv2d and Linear operations are counted, plus ER-Net disentangler
+    gates (applied functionally, one 4-term dot product per output);
   * normalization, activation, elementwise coupling and pooling are excluded;
   * all values are for one inference image.
 """
@@ -15,10 +16,14 @@ from typing import Callable
 import torch
 from torch import Tensor, nn
 
-from model.casprnet import CasprNet, casprnet_n, casprnet_s, casprnet_t
+from model.casprnet import casprnet_n, casprnet_s, casprnet_t
+from model.ernet import Disentangler, ernet_n, ernet_s, ernet_t
 
 
-MODEL_FACTORIES: dict[str, Callable[..., CasprNet]] = {
+MODEL_FACTORIES: dict[str, Callable[..., nn.Module]] = {
+    "ernet_n": ernet_n,
+    "ernet_t": ernet_t,
+    "ernet_s": ernet_s,
     "casprnet_n": casprnet_n,
     "casprnet_t": casprnet_t,
     "casprnet_s": casprnet_s,
@@ -68,8 +73,15 @@ def profile_model(
         nonlocal macs
         macs += output.numel() * module.in_features
 
+    def count_disentangler(module: Disentangler, _inputs: tuple[Tensor],
+                           output: Tensor) -> None:
+        nonlocal macs
+        macs += output.numel() * 4      # one 4-term dot product per output
+
     for module in network.modules():
-        if isinstance(module, nn.Conv2d):
+        if isinstance(module, Disentangler):
+            handles.append(module.register_forward_hook(count_disentangler))
+        elif isinstance(module, nn.Conv2d):
             handles.append(module.register_forward_hook(count_conv))
         elif isinstance(module, nn.Linear):
             handles.append(module.register_forward_hook(count_linear))
@@ -120,7 +132,7 @@ def print_profiles(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser("Profile CASPR-Net variants")
+    parser = argparse.ArgumentParser("Profile ER-Net / CASPR-Net variants")
     parser.add_argument(
         "--model",
         choices=("all", *sorted(MODEL_FACTORIES)),

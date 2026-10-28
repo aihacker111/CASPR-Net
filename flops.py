@@ -9,9 +9,9 @@ T0 = 5
 T1 = 10
 
 for n, batch_size, resolution in [
-    ('casprnet_n', 1, 224),
-    ('casprnet_t', 1, 224),
-    ('casprnet_s', 1, 224),
+    ('ernet_n', 1, 224),
+    ('ernet_t', 1, 224),
+    ('ernet_s', 1, 224),
 ]:
     inputs = torch.randn(1, 3, resolution,
                             resolution)

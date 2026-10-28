@@ -32,7 +32,7 @@ from argparse import ArgumentParser
 
 parser = ArgumentParser()
 
-parser.add_argument('--model', default='casprnet_n', type=str)
+parser.add_argument('--model', default='ernet_n', type=str)
 parser.add_argument('--resolution', default=224, type=int)
 parser.add_argument('--batch-size', default=2048, type=int)
 
@@ -45,6 +45,9 @@ if __name__ == "__main__":
     inputs = torch.randn(batch_size, 3, resolution,
                             resolution, device=device)
     model = create_model(model_name, num_classes=1000)
+    if hasattr(model, 'reparameterize'):
+        model.eval()
+        model.reparameterize()
     utils.replace_batchnorm(model)
     model.to(device)
     model.eval()

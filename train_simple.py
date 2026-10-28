@@ -481,8 +481,8 @@ def get_args():
                         help='Number of output classes (2 for dogs vs cats)')
 
     # Model
-    parser.add_argument('--model', default='casprnet_n', type=str,
-                        help='CASPR-Net model registered in timm, such as casprnet_n')
+    parser.add_argument('--model', default='ernet_n', type=str,
+                        help='Model registered in timm, such as ernet_n (default) or casprnet_n')
     parser.add_argument('--pretrained-ckpt', default='', type=str,
                         help='Optional path to a pretrained checkpoint (ImageNet). '
                              'The classifier head will be re-initialised automatically.')
