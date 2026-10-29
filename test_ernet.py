@@ -218,6 +218,36 @@ def test_deploy_never_adds_parameters() -> None:
             assert deploy <= train, (factory.__name__, kwargs, train, deploy)
 
 
+def test_headless_backbone_and_distilled_loading() -> None:
+    """Distillation uses a headless ERNet; its weights load into a full model."""
+    import os
+    import tempfile
+    from model.ernet.lightly import ERNetDistillWrapper, load_distilled_weights
+    torch.manual_seed(12)
+    backbone = ernet_n(headless=True).eval()
+    assert backbone.headless and backbone.num_classes == 0
+    assert not any(k.startswith(("head.", "head_projection."))
+                   for k in backbone.state_dict())
+    x = torch.randn(2, 3, 64, 64)
+    with torch.no_grad():
+        assert backbone(x).shape == (2, backbone.widths[-1])
+    assert backbone.compare_reparameterization(x, atol=1e-4, rtol=1e-4)["passed"]
+    # The distillation wrapper strips the head of a full model as well.
+    wrapper = ERNetDistillWrapper(ernet_n(), feature_levels=(3, 4))
+    assert wrapper.get_model().headless
+    with torch.no_grad():
+        features = wrapper.forward_features(x)["features"]
+    assert features.shape[1] == wrapper.feature_dim() == 96 + 192
+    # Backbone weights -> full ERNet: everything but the head is copied.
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, "distilled.pth")
+        torch.save({"model": backbone.state_dict()}, path)
+        full = load_distilled_weights(ernet_n(num_classes=10), path)
+    for key, value in backbone.state_dict().items():
+        assert torch.equal(full.state_dict()[key], value), key
+    assert full(x).shape == (2, 10)
+
+
 def test_variants() -> None:
     torch.manual_seed(9)
     x = torch.randn(1, 3, 64, 64)
@@ -275,6 +305,8 @@ if __name__ == "__main__":
         ("backward, distillation head, no-weight-decay set",
          test_backward_and_no_weight_decay),
         ("ernet_n / ernet_t / ernet_s deploy equivalence", test_variants),
+        ("headless backbone + distilled weight loading",
+         test_headless_backbone_and_distilled_loading),
         ("deploy never adds parameters", test_deploy_never_adds_parameters),
         ("ONNX export matches PyTorch", test_onnx_export_matches),
     ]

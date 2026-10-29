@@ -61,13 +61,47 @@ extra disk), then train:
 python tools/prepare_kaggle_imagenet.py \
     --kaggle-root /kaggle/input/imagenet-object-localization-challenge \
     --out /kaggle/working/imagenet
+# one GPU (global batch 128 x 2 = 256)
 DATA_PATH=/kaggle/working/imagenet NUM_WORKERS=4 BATCH_SIZE=128 ACCUM_STEPS=2 \
     bash train_ernet_imagenet.sh ernet_n
+# two GPUs (T4 x2): torchrun is used automatically, global batch 128 x 2 GPUs = 256
+DATA_PATH=/kaggle/working/imagenet GPUS=0,1 NUM_WORKERS=2 BATCH_SIZE=128 \
+    bash train_ernet_imagenet.sh ernet_n
 ```
+
+In a notebook put the whole command on **one** `!` line (each `!` line is a
+separate shell, so variables set on an earlier line are lost).
 
 The script checks 1000 classes, 50,000 val images (50 per class) and that
 train/val class indices match. Teacher distillation downloads RegNetY-16GF,
 so enable internet or pass `DISTILLATION_TYPE=none`.
+
+### DINOv3 distillation (LightlyTrain), then COCO
+
+Distill a DINOv3 teacher into ER-Net on unlabeled ImageNet-1k train images
+(labels are ignored), then use the weights as a COCO backbone or fine-tune on
+ImageNet:
+
+```bash
+pip install -r requirements-distill.txt          # lightly-train (AGPL-3.0)
+# Kaggle, two GPUs, whole command on one line in a notebook
+DATA_PATH=/kaggle/working/imagenet GPUS=2 BATCH_SIZE=256 EPOCHS=100 \
+    bash distill_ernet_dinov3.sh ernet_n
+# faster epochs: IMAGES_PER_CLASS=300 ; resume after a stop: RESUME=1
+# same recipe for an ablation: EXTRA_ARGS="--no-disentangle" OUT_DIR=runs/tree ...
+```
+
+Output: `runs/distill_dinov3_ernet_n/ernet_distilled.pth` (`{'model': state_dict}`).
+Load it with `model.ernet.lightly.load_distilled_weights(model, path)`, or
+fine-tune on ImageNet with `DISTILLATION_TYPE=none` and `--finetune <path>`.
+The distilled feature map fuses stage 3 (stride 16) and stage 4 (stride 32,
+upsampled) on the teacher's 14x14 grid. The student has no classification
+head (`headless=True`), so the file holds backbone weights only; loading it
+into a full model leaves just the head freshly initialised.
+Precision is fp16 on T4/P100 and bf16 on Ampere or newer. DINOv3 weights are
+downloaded by LightlyTrain (internet required) and follow the DINOv3 license;
+`TEACHER=dinov2/vitb14` gives an Apache-2.0 teacher. For a fair paper
+comparison, distill the ablations and baselines with the identical recipe.
 
 Ablations (`main.py`): `--no-disentangle` (tree), `--renormalization conv4x4`,
 `--no-wavelet-init`, `--block-disentangle`, `--circuit-depth k`.

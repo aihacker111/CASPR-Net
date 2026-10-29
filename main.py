@@ -433,8 +433,13 @@ def main(args):
             global_pool='avg',
         )
         if args.teacher_path.startswith('https'):
+            # Rank 0 downloads; the other ranks then read the hub cache.
+            if args.distributed and not utils.is_main_process():
+                torch.distributed.barrier()
             checkpoint = torch.hub.load_state_dict_from_url(
                 args.teacher_path, map_location='cpu', check_hash=True)
+            if args.distributed and utils.is_main_process():
+                torch.distributed.barrier()
         else:
             checkpoint = torch.load(args.teacher_path, map_location='cpu')
         teacher_model.load_state_dict(checkpoint['model'])

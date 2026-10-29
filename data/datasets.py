@@ -75,7 +75,8 @@ class CachedImageFolder(ImageFolder):
     are added or removed (``ERNET_DATA_CACHE`` sets the cache folder).
     """
 
-    def __init__(self, root, transform=None, cache_dir=None):
+    def __init__(self, root, transform=None, cache_dir=None,
+                 wait_for_index=False, wait_timeout=3 * 3600):
         root = os.path.abspath(os.path.expanduser(root))
         if not os.path.isdir(root):
             raise FileNotFoundError(
@@ -92,6 +93,17 @@ class CachedImageFolder(ImageFolder):
                         str(sum(stamps) % (1 << 61))])
         signature = hashlib.sha1(key.encode()).hexdigest()[:16]
         cache_file = os.path.join(cache_dir, f"index_{signature}.pkl")
+
+        if wait_for_index and not os.path.exists(cache_file):
+            # Distributed run: rank 0 scans the folder; the other ranks wait for
+            # its cache file instead of scanning the same disk concurrently
+            # (a collective barrier would hit the 10-minute NCCL timeout).
+            print(f"[data] waiting for rank 0 to index {root} ...", flush=True)
+            deadline = time.time() + wait_timeout
+            while not os.path.exists(cache_file):
+                if time.time() > deadline:
+                    raise TimeoutError(f"No index for {root} after {wait_timeout}s")
+                time.sleep(5)
 
         if os.path.exists(cache_file):
             started = time.time()
@@ -139,6 +151,12 @@ class CachedImageFolder(ImageFolder):
         self.imgs = self.samples
 
 
+def _is_non_zero_rank():
+    return (torch.distributed.is_available()
+            and torch.distributed.is_initialized()
+            and torch.distributed.get_rank() != 0)
+
+
 def build_dataset(is_train, args):
     transform = build_transform(is_train, args)
 
@@ -155,7 +173,8 @@ def build_dataset(is_train, args):
             dataset = TimmDatasetTar(data_dir, transform=transform)
         else:
             root = os.path.join(args.data_path, 'train' if is_train else 'val')
-            dataset = CachedImageFolder(root, transform=transform)
+            dataset = CachedImageFolder(root, transform=transform,
+                                        wait_for_index=_is_non_zero_rank())
         nb_classes = 1000
     elif args.data_set == 'IMNETEE':
         root = os.path.join(args.data_path, 'train' if is_train else 'val')

@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DATA_PATH="${DATA_PATH:-/kaggle/working/imagenet}"
+# Run from the repository root wherever the script is called from (e.g. a
+# Kaggle / Jupyter cell whose working directory is /kaggle/working).
+cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+
+DATA_PATH="${DATA_PATH:-/media/hung/HDD2/workplaces/tin/cvpr2027/imagenet1k/imagenet}"
 MODEL="${1:-ernet_n}"
-GPU="${GPU:-0}"
 BATCH_SIZE="${BATCH_SIZE:-256}"
 ACCUM_STEPS="${ACCUM_STEPS:-1}"
 OUTPUT_DIR="${OUTPUT_DIR:-checkpoints}"
@@ -13,7 +16,19 @@ TEACHER_PATH="${TEACHER_PATH:-https://dl.fbaipublicfiles.com/deit/regnety_160-a5
 DISTILLATION_ALPHA="${DISTILLATION_ALPHA:-0.5}"
 DISTILLATION_TAU="${DISTILLATION_TAU:-1.0}"
 
-CUDA_VISIBLE_DEVICES="$GPU" python main.py \
+# GPUS: comma-separated GPU ids, e.g. GPUS=0,1 for two GPUs (Kaggle T4 x2).
+# BATCH_SIZE is per GPU: global batch = BATCH_SIZE * ACCUM_STEPS * number_of_GPUs.
+GPUS="${GPUS:-${GPU:-0}}"
+IFS=',' read -r -a GPU_LIST <<< "$GPUS"
+NUM_GPUS="${#GPU_LIST[@]}"
+if [ "$NUM_GPUS" -gt 1 ]; then
+    LAUNCH=(torchrun --standalone --nproc_per_node="$NUM_GPUS")
+else
+    LAUNCH=(python)
+fi
+echo "GPUs: $GPUS -> $NUM_GPUS process(es) | per-GPU batch $BATCH_SIZE x accum $ACCUM_STEPS = global $((BATCH_SIZE * ACCUM_STEPS * NUM_GPUS))"
+
+CUDA_VISIBLE_DEVICES="$GPUS" "${LAUNCH[@]}" main.py \
     --model "$MODEL" \
     --activation relu \
     --circuit-depth "${CIRCUIT_DEPTH:-1}" \

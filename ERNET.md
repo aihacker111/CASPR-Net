@@ -154,6 +154,13 @@ GPU=0 BATCH_SIZE=64 ACCUM_STEPS=4 bash train_ernet_imagenet.sh ernet_t
 python main.py --eval --deploy --model ernet_n --resume <ckpt> --data-path <imagenet>
 ```
 
+DINOv3 -> ER-Net distillation with LightlyTrain (`distill_dinov3.py`,
+`distill_ernet_dinov3.sh`, wrapper in `model/ernet/lightly.py`):
+
+```bash
+DATA_PATH=/kaggle/working/imagenet GPUS=2 bash distill_ernet_dinov3.sh ernet_n
+```
+
 `main.py` options: `--activation`, `--circuit-depth`, `--local-kernel`
 (0 disables the depthwise prior) and the ablations `--no-disentangle` (tree),
 `--block-disentangle` (brick-wall in every block), `--no-wavelet-init` and

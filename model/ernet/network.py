@@ -1,4 +1,8 @@
-"""ER-Net: Entanglement Renormalization Network backbone + ImageNet head."""
+"""ER-Net: Entanglement Renormalization Network backbone + ImageNet head.
+
+``headless=True`` builds the backbone without the classification head (for
+distillation or as a detection backbone).
+"""
 from __future__ import annotations
 
 from copy import deepcopy
@@ -71,6 +75,7 @@ class ERNet(nn.Module):
         distillation: bool = False,
         global_pool: str = "avg",
         deploy: bool = False,
+        headless: bool = False,
         **_: object,
     ):
         super().__init__()
@@ -79,7 +84,7 @@ class ERNet(nn.Module):
             raise ValueError("widths and depths must have equal length")
         if global_pool != "avg":
             raise ValueError("ERNet supports global_pool='avg' only")
-        if head_dim < widths[-1]:
+        if not headless and head_dim < widths[-1]:
             raise ValueError("head_dim must be at least the final stage width")
 
         def per_stage(value, name: str) -> tuple:
@@ -137,6 +142,9 @@ class ERNet(nn.Module):
             dict(num_chs=width, reduction=4 * (2 ** index), module=f"stages.{index}")
             for index, width in enumerate(widths)
         ]
+        self.headless = False
+        if headless:
+            self.remove_head()
         self.apply(self._init_weights)
         for module in self.modules():
             if isinstance(module, (Isometry, Disentangler)):
@@ -274,13 +282,32 @@ class ERNet(nn.Module):
                 for name, module in self.named_modules()
                 if isinstance(module, Isometry)}
 
+    # ----------------------------------------------------------- headless
+    def remove_head(self) -> "ERNet":
+        """Drop the classification head (head projection + FC).
+
+        Used for self-supervised distillation and as a detection backbone: the
+        model then returns pooled stage-4 features from ``forward`` and its
+        state dict contains backbone weights only.  Loading such weights into
+        a full ERNet initialises a fresh head (see ``load_distilled_weights``).
+        """
+        self.head_projection = nn.Identity()
+        self.head = nn.Identity()
+        self.num_features = self.backbone_features
+        self.num_classes = 0
+        self.headless = True
+        return self
+
     # ----------------------------------------------------------------- timm
     def get_classifier(self) -> nn.Module:
-        return self.head.fc
+        return nn.Identity() if self.headless else self.head.fc
 
     def reset_classifier(self, num_classes: int, global_pool: str = "avg") -> None:
         if global_pool != "avg":
             raise ValueError("ERNet supports global_pool='avg' only")
+        if self.headless:
+            raise ValueError("Headless ERNet: build it with headless=False and load "
+                             "the backbone weights to add a classifier")
         self.num_classes = num_classes
         self.head = ClassificationHead(self.num_features, num_classes,
                                        self.head.distillation)
