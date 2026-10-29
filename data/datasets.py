@@ -8,7 +8,8 @@ import pickle
 import time
 
 from torchvision import datasets, transforms
-from torchvision.datasets.folder import ImageFolder, default_loader
+from concurrent.futures import ThreadPoolExecutor
+from torchvision.datasets.folder import IMG_EXTENSIONS, ImageFolder, default_loader
 import torch
 
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
@@ -64,6 +65,46 @@ class INatDataset(ImageFolder):
     # __getitem__ and __len__ inherited from ImageFolder
 
 
+def _scan_class_folder(folder):
+    """Image paths below ``folder`` in torchvision ImageFolder order.
+
+    Uses ``os.scandir`` and the file extension only (no per-file stat), and
+    orders the result exactly like ``sorted(os.walk(...))`` + ``sorted(files)``.
+    """
+    found = []
+    pending = [folder]
+    while pending:
+        directory = pending.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if entry.name.lower().endswith(IMG_EXTENSIONS):
+                    found.append((directory, entry.name))
+                elif entry.is_dir(follow_symlinks=True):
+                    pending.append(entry.path)
+    found.sort()
+    return [os.path.join(directory, name) for directory, name in found]
+
+
+def scan_image_folder(root, classes, threads=None):
+    """Parallel replacement for torchvision's ImageFolder scan, with progress.
+
+    Directory listing is latency-bound (hard disks, NTFS/FUSE mounts, network
+    storage), so listing class folders concurrently is much faster than the
+    sequential walk while producing the identical (path, label) list.
+    """
+    threads = threads or int(os.environ.get("ERNET_INDEX_THREADS", 32))
+    folders = [os.path.join(root, name) for name in classes]
+    samples, started = [], time.time()
+    step = max(1, len(folders) // 10)
+    with ThreadPoolExecutor(max_workers=threads) as pool:
+        for label, paths in enumerate(pool.map(_scan_class_folder, folders)):
+            samples.extend((path, label) for path in paths)
+            if (label + 1) % step == 0 or label + 1 == len(folders):
+                print(f"[data]   {label + 1}/{len(folders)} classes, {len(samples)} "
+                      f"images, {time.time() - started:.0f}s", flush=True)
+    return samples
+
+
 class CachedImageFolder(ImageFolder):
     """ImageFolder whose file index is cached after the first scan.
 
@@ -116,11 +157,15 @@ class CachedImageFolder(ImageFolder):
                   flush=True)
             return
 
-        print(f"[data] Indexing {root} ({len(classes)} class folders). The first run "
-              "on a hard disk can take several minutes; it is cached afterwards.",
-              flush=True)
+        print(f"[data] Indexing {root} ({len(classes)} class folders, parallel). "
+              "Done once; later runs load the cached index.", flush=True)
         started = time.time()
-        super().__init__(root, transform=transform)
+        samples = scan_image_folder(root, classes)
+        if not samples:
+            raise FileNotFoundError(f"No images found under {root}")
+        self._init_from_index(root, transform, dict(
+            classes=classes, class_to_idx={c: i for i, c in enumerate(classes)},
+            samples=samples))
         print(f"[data] {root}: {len(self.samples)} images indexed in "
               f"{time.time() - started:.0f}s", flush=True)
         try:

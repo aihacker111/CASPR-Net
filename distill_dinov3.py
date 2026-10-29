@@ -91,7 +91,7 @@ def resolve_precision(choice: str) -> str:
 
 
 def subset_images(root: str, per_class: int, seed: int) -> list[str]:
-    """Deterministic N images per class folder (uses the cached ImageNet index)."""
+    """All images, or a deterministic N per class folder, from the cached index."""
     from data.datasets import CachedImageFolder
     index = CachedImageFolder(root)
     by_class: dict[int, list[str]] = defaultdict(list)
@@ -101,8 +101,10 @@ def subset_images(root: str, per_class: int, seed: int) -> list[str]:
     chosen = []
     for target in sorted(by_class):
         paths = sorted(by_class[target])
-        rng.shuffle(paths)
-        chosen.extend(paths[:per_class])
+        if per_class > 0:
+            rng.shuffle(paths)
+            paths = paths[:per_class]
+        chosen.extend(paths)
     return chosen
 
 
@@ -129,10 +131,12 @@ def main() -> int:
     levels = [int(v) for v in args.feature_levels.split(",") if v.strip()]
     wrapper = ERNetDistillWrapper(student, feature_levels=levels)
 
-    data: str | list[str] = args.data
-    if args.images_per_class > 0:
-        data = subset_images(args.data, args.images_per_class, args.seed)
-        print(f"Using {len(data)} images ({args.images_per_class} per class)")
+    # Always hand LightlyTrain an explicit file list from the cached index: with a
+    # list it only checks extensions, whereas a directory is re-walked
+    # (sequentially) at every start, including every --resume.
+    data = subset_images(args.data, args.images_per_class, args.seed)
+    print(f"Using {len(data)} images "
+          f"({'all' if args.images_per_class <= 0 else args.images_per_class} per class)")
 
     method_args: dict = {"teacher": args.teacher}
     if args.teacher_weights:
